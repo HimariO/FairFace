@@ -404,15 +404,15 @@ if __name__ == "__main__":
         #     '/home/ron/Downloads/hateful_meme_data_phase2/img_clean',
         #     debug=True
         # )
-        # detect_gqa_race_mp(
-        #     '/home/ron/Downloads/hateful_meme_data/clean_img_boxes_gqa.json',
-        #     '/home/ron/Downloads/hateful_meme_data_phase2/img_clean',
-        #     '/home/ron/Downloads/hateful_meme_data_phase2/face_race_boxes.1025.json',
-        #     debug=False
-        # )
-
-        map_race_to_person_box(
-            '/home/ron/Downloads/hateful_meme_data_phase2/img',
+        detect_gqa_race_mp(
             '/home/ron/Downloads/hateful_meme_data_phase2/box_annos.json',
-            '/home/ron/Downloads/hateful_meme_data_phase2/face_race_boxes.1025.json',
+            '/home/ron/Downloads/hateful_meme_data_phase2/img_clean',
+            '/home/ron/Downloads/hateful_meme_data_phase2/face_race_boxes.1118.json',
+            debug=False
         )
+
+        # map_race_to_person_box(
+        #     '/home/ron/Downloads/hateful_meme_data_phase2/img',
+        #     '/home/ron/Downloads/hateful_meme_data_phase2/box_annos.json',
+        #     '/home/ron/Downloads/hateful_meme_data_phase2/face_race_boxes.1025.json',
+        # )
