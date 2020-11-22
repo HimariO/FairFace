@@ -1,6 +1,8 @@
 import os
 import glob
 import json
+import fire
+import random
 from multiprocessing import Pool
 from collections import Counter
 
@@ -230,24 +232,37 @@ def predict(anno, meme_img_dir, cnn_face_detector, sp, model_fair_7, debug=False
     
     face_crops, dlib_boxes = dlib_detect(img, cnn_face_detector, sp)
     
+    for bs in anno['boxes_and_score']:
+        if 'box' not in bs:
+            # mul_w = w if bs['xmax'] < 1 else 1.0
+            # mul_h = h if bs['ymax'] < 1 else 1.0
+            mul_w = w
+            mul_h = h
+            bs['box'] = [
+                bs['xmin'] * mul_w,
+                bs['ymin'] * mul_h,
+                bs['xmax'] * mul_w,
+                bs['ymax'] * mul_h
+            ]
+    
     face_box = [
         [int(b) for b in bs['box'][:4]]
         for bs in anno['boxes_and_score']
-        if bs['class_name'] in 'face'
+        if bs['class_name'].lower() in ['face', 'human face']
     ]
     face_box = converage_nms(dlib_boxes, face_box)
     
     head_box = [
         [int(b) for b in bs['box'][:4]]
         for bs in anno['boxes_and_score']
-        if bs['class_name'] in 'head'
+        if bs['class_name'] in ['head', 'human head']
     ]
     head_box = converage_nms(dlib_boxes + face_box, head_box)
     
     hair_box = [
         [int(b) for b in refine_hair_box(bs['box'][:4], h, w)]
         for bs in anno['boxes_and_score']
-        if bs['class_name'] in 'hair'
+        if bs['class_name'] in ['hair', 'human hair']
     ]
     hair_box = converage_nms(dlib_boxes + face_box + head_box, hair_box)
     gqa_det_crops = [
@@ -292,24 +307,25 @@ def _detect_race(args):
     gqa_boxes, meme_img_dir = args
     cnn_face_detector, sp, model_fair_7 = load_dlib_model()
     results = {}
-    for i, anno in enumerate(gqa_boxes):
-        crop_boxes, cls_pred = predict(anno, meme_img_dir, cnn_face_detector, sp, model_fair_7)
-        results[anno['img_name']] = {
-            'face_boxes': crop_boxes,
-            'face_race': [c[0] for c in cls_pred],
-            'face_gender': [c[1] for c in cls_pred],
-        }
+    with logger.catch(reraise=True):
+        for i, anno in enumerate(gqa_boxes):
+            crop_boxes, cls_pred = predict(anno, meme_img_dir, cnn_face_detector, sp, model_fair_7)
+            results[anno['img_name']] = {
+                'face_boxes': crop_boxes,
+                'face_race': [c[0] for c in cls_pred],
+                'face_gender': [c[1] for c in cls_pred],
+            }
     return results
 
 
-def detect_gqa_race_mp(gqa_box_anno, meme_img_dir, output_path, debug=False):
+def detect_gqa_race_mp(gqa_box_anno, meme_img_dir, output_path, debug=False, worker=4):
     torch.multiprocessing.set_start_method('spawn')
-    worker = 10
     with open(gqa_box_anno, 'r') as f:
         gqa_boxes = json.load(f)
         # gqa_boxes = gqa_boxes[:36]
+        random.shuffle(gqa_boxes)
     
-    arg_split = [(gqa_boxes[i::worker], meme_img_dir) for i in range(worker)]
+    arg_split = [(gqa_boxes[i::worker*2], meme_img_dir) for i in range(worker*2)]
     gather_result = {}
     
     with Pool(worker) as pool:
@@ -400,19 +416,42 @@ def map_race_to_person_box(img_dir, boxes_json, face_race_json, detector='oid'):
 if __name__ == "__main__":
     with logger.catch(reraise=True):
         # detect_gqa_race(
-        #     '/home/ron/Downloads/hateful_meme_data/clean_img_boxes_gqa.json',
+        #     "/home/ron/Downloads/hateful_meme_data_phase2/box_annos.json",
+        #     # "/home/ron/Downloads/hateful_meme_data_phase2/box_annos_bottom_up.json",
         #     '/home/ron/Downloads/hateful_meme_data_phase2/img_clean',
         #     debug=True
         # )
-        detect_gqa_race_mp(
-            '/home/ron/Downloads/hateful_meme_data_phase2/box_annos.json',
-            '/home/ron/Downloads/hateful_meme_data_phase2/img_clean',
-            '/home/ron/Downloads/hateful_meme_data_phase2/face_race_boxes.1118.json',
-            debug=False
-        )
+        # detect_gqa_race_mp(
+        #     '/home/ron/Downloads/hateful_meme_data_phase2/box_annos.json',
+        #     '/home/ron/Downloads/hateful_meme_data_phase2/img_clean',
+        #     '/home/ron/Downloads/hateful_meme_data_phase2/face_race_boxes.1118.json',
+        #     debug=False
+        # )
+        # detect_gqa_race_mp(
+        #     '/home/ron/Downloads/hateful_meme_data_phase2/box_annos_bottom_up.json',
+        #     '/home/ron/Downloads/hateful_meme_data_phase2/img_clean',
+        #     '/home/ron/Downloads/hateful_meme_data_phase2/face_race_boxes.bottomup.json',
+        #     debug=False
+        # )
+        # detect_gqa_race_mp(
+        #     '/data/box_annos.json',
+        #     '/data/img_clean',
+        #     '/face_race_boxes.1118.json',
+        #     debug=False
+        # )
 
         # map_race_to_person_box(
         #     '/home/ron/Downloads/hateful_meme_data_phase2/img',
-        #     '/home/ron/Downloads/hateful_meme_data_phase2/box_annos.json',
-        #     '/home/ron/Downloads/hateful_meme_data_phase2/face_race_boxes.1025.json',
+        #     '/home/ron/Downloads/hateful_meme_data_phase2/race_box_anno_btmup/box_annos.json',
+        #     '/home/ron/Downloads/hateful_meme_data_phase2/face_race_boxes.bottomup.json',
         # )
+        # map_race_to_person_box(
+        #     '/data/img',
+        #     '/data/race_box_anno_btmup/box_annos.json',
+        #     '/face_race_boxes.bottomup.json',
+        # )
+
+        fire.Fire({
+            "detect_race_mp": detect_gqa_race_mp,
+            "map_race_to_person_box": map_race_to_person_box,
+        })
